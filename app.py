@@ -17,7 +17,7 @@ def generar_excel(df):
     ws = wb.active
     ws.title = "Informe Asistencia"
 
-    # Estilos
+    # Estilos encabezado
     header_fill = PatternFill(start_color="0000FF", end_color="0000FF", fill_type="solid")
     header_font = Font(color="FFFFFF", bold=True)
     center_align = Alignment(horizontal="center")
