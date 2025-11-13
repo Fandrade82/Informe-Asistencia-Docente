@@ -1,117 +1,88 @@
+rom flask import Flask, request, send_file, render_template_string
 import pandas as pd
-import openpyxl
+from openpyxl import Workbook
 from openpyxl.styles import PatternFill, Font, Alignment
-from flask import Flask, request, send_file, render_template
-import io
-from reportlab.lib.pagesizes import letter
-from reportlab.pdfgen import canvas
 
 app = Flask(__name__)
 
-def validar_columnas(df):
-    required_cols = ["Docente", "Fecha", "Hora3", "Hora4", "Jornada"]
-    return all(col in df.columns for col in required_cols)
+HTML_FORM = """
+<!doctype html>
+<title>Informe de Asistencia</title>
+<h2>Sube tu archivo Excel de asistencia</h2>
+<form method=post enctype=multipart/form-data>
+  <input type=file name=file>
+  <input type=submit value=Procesar>
+</form>
+"""
 
-def generar_excel(df):
-    wb = openpyxl.Workbook()
-    ws = wb.active
-    ws.title = "Informe Asistencia"
-
-    header_fill = PatternFill(start_color="0000FF", end_color="0000FF", fill_type="solid")
-    header_font = Font(color="FFFFFF", bold=True)
-    center_align = Alignment(horizontal="center")
-
-    headers = ["Docente", "Fecha", "Hora3", "Hora4", "Observación"]
-    ws.append(headers)
-    for col in range(1, len(headers)+1):
-        cell = ws.cell(row=1, column=col)
-        cell.fill = header_fill
-        cell.font = header_font
-        cell.alignment = center_align
-
-    for _, row in df.iterrows():
-        docente = row.get("Docente", "")
-        fecha = row.get("Fecha", "")
-        hora3 = row.get("Hora3", "") or ""
-        hora4 = row.get("Hora4", "") or ""
-        jornada = row.get("Jornada", "")
-        observacion = ""
-
-        if isinstance(fecha, pd.Timestamp):
-            if jornada in ["ADMIN MATUTINA", "ADMIN VESPERTINA"]:
-                if pd.isna(hora3) or pd.isna(hora4):
-                    observacion = "No marca"
-            elif jornada in ["DOC. MATUTINA", "DOC. VESPERTINA", "DOC. NOCTURNA"]:
-                if fecha.weekday() == 3:
-                    if pd.isna(hora3) or pd.isna(hora4):
-                        observacion = "No marca"
-
-        fecha_str = fecha.strftime("%d/%m/%Y") if isinstance(fecha, pd.Timestamp) else str(fecha)
-        ws.append([docente, fecha_str, hora3, hora4, observacion])
-
-        if observacion == "No marca":
-            for col in range(1, 6):
-                ws.cell(row=ws.max_row, column=col).fill = PatternFill(start_color="FFFF00", end_color="FFFF00", fill_type="solid")
-
-    for col in ws.columns:
-        max_length = max(len(str(cell.value)) if cell.value else 0 for cell in col)
-        ws.column_dimensions[col[0].column_letter].width = max_length + 2
-
-    output = io.BytesIO()
-    wb.save(output)
-    output.seek(0)
-    return output
-
-def generar_pdf(df):
-    buffer = io.BytesIO()
-    c = canvas.Canvas(buffer, pagesize=letter)
-    c.setFont("Helvetica-Bold", 14)
-    c.drawString(200, 770, "Informe de Asistencia")
-    c.setFont("Helvetica", 10)
-    y = 740
-    for _, row in df.iterrows():
-        fecha_str = row["Fecha"].strftime("%d/%m/%Y") if isinstance(row["Fecha"], pd.Timestamp) else str(row["Fecha"])
-        texto = f"{row.get('Docente','')} | {fecha_str} | Hora3: {row.get('Hora3','')} | Hora4: {row.get('Hora4','')}"
-        c.drawString(50, y, texto)
-        y -= 15
-        if y < 50:
-            c.showPage()
-            y = 750
-    c.save()
-    buffer.seek(0)
-    return buffer
-
-@app.route('/')
-def index():
-    return render_template('index.html', ready=False)
-
-@app.route('/upload', methods=['POST'])
+@app.route('/', methods=['GET', 'POST'])
 def upload_file():
-    file = request.files['file']
-    if not file.filename.endswith(('.xlsx', '.xls')):
-        return "Error: Formato no permitido"
-    df = pd.read_excel(file)
-    if not validar_columnas(df):
-        return "Error: El archivo no tiene las columnas requeridas"
-    df["Fecha"] = pd.to_datetime(df["Fecha"], errors="coerce")
-    request.environ['processed_data'] = df
-    return render_template('index.html', ready=True)
+    if request.method == 'POST':
+        file = request.files['file']
+        if file:
+            df = pd.read_excel(file, engine='openpyxl')
+            df.columns = df.columns.str.strip()
 
-@app.route('/download_excel')
-def download_excel():
-    df = request.environ.get('processed_data')
-    if df is None:
-        return "Error: No hay datos procesados"
-    output = generar_excel(df)
-    return send_file(output, as_attachment=True, download_name="Informe_Asistencia.xlsx")
+            docentes = df['Apellido y Nombre'].unique()
+            wb = Workbook()
+            ws = wb.active
+            ws.title = "Informe"
 
-@app.route('/download_pdf')
-def download_pdf():
-    df = request.environ.get('processed_data')
-    if df is None:
-        return "Error: No hay datos procesados"
-    output = generar_pdf(df)
-    return send_file(output, as_attachment=True, download_name="Informe_Asistencia.pdf")
+            header_fill = PatternFill(start_color="0000FF", end_color="0000FF", fill_type="solid")
+            header_font = Font(color="FFFFFF", bold=True)
+            yellow_fill = PatternFill(start_color="FFFF00", end_color="FFFF00", fill_type="solid")
+            center_align = Alignment(horizontal="center")
+
+            row_num = 1
+            for docente in docentes:
+                ws.merge_cells(start_row=row_num, start_column=1, end_row=row_num, end_column=10)
+                cell = ws.cell(row=row_num, column=1, value=docente)
+                cell.font = Font(bold=True)
+                cell.alignment = center_align
+                row_num += 1
+
+                subset = df[df['Apellido y Nombre'] == docente]
+                columns = list(subset.columns) + ['Observación']
+                for col_num, col_name in enumerate(columns, 1):
+                    cell = ws.cell(row=row_num, column=col_num, value=col_name)
+                    cell.fill = header_fill
+                    cell.font = header_font
+                    cell.alignment = center_align
+                row_num += 1
+
+                for _, row in subset.iterrows():
+                    jornada = str(row['Departamento']).strip().upper()
+                    dia_semana = str(row['Semana']).strip().lower()
+                    verificar = False
+                    if jornada.startswith('ADMIN'):
+                        verificar = True
+                    elif jornada.startswith('DOC') and dia_semana == 'jueves':
+                        verificar = True
+
+                    observacion = ''
+                    if verificar and (pd.isna(row.get('Hora3')) or pd.isna(row.get('Hora4'))):
+                        observacion = 'No marca'
+
+                    for col_num, col_name in enumerate(subset.columns, 1):
+                        valor = row.get(col_name)
+                        cell = ws.cell(row=row_num, column=col_num, value=valor)
+                        if observacion == 'No marca':
+                            cell.fill = yellow_fill
+                        cell.alignment = center_align
+
+                    cell = ws.cell(row=row_num, column=len(subset.columns)+1, value=observacion)
+                    if observacion == 'No marca':
+                        cell.fill = yellow_fill
+                    cell.alignment = center_align
+                    row_num += 1
+
+                row_num += 1  # Espacio entre docentes
+
+            output_path = "informe_asistencia.xlsx"
+            wb.save(output_path)
+            return send_file(output_path, as_attachment=True)
+
+    return render_template_string(HTML_FORM)
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000)
+    app.run(debug=True)
