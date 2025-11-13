@@ -10,27 +10,33 @@ def upload_file():
     if request.method == 'POST':
         file = request.files['file']
         if file:
+            # Leer el archivo Excel
             df = pd.read_excel(file, engine='openpyxl')
             df.columns = df.columns.str.strip()
 
-            docentes = df['Apellido y Nombre'].unique()
+            # Crear nuevo libro
             wb = Workbook()
             ws = wb.active
             ws.title = "Informe"
 
+            # Estilos
             header_fill = PatternFill(start_color="0000FF", end_color="0000FF", fill_type="solid")
             header_font = Font(color="FFFFFF", bold=True)
             yellow_fill = PatternFill(start_color="FFFF00", end_color="FFFF00", fill_type="solid")
             center_align = Alignment(horizontal="center")
 
+            docentes = df['Apellido y Nombre'].unique()
             row_num = 1
+
             for docente in docentes:
+                # Título con nombre del docente
                 ws.merge_cells(start_row=row_num, start_column=1, end_row=row_num, end_column=10)
                 cell = ws.cell(row=row_num, column=1, value=docente)
                 cell.font = Font(bold=True)
                 cell.alignment = center_align
                 row_num += 1
 
+                # Encabezados
                 subset = df[df['Apellido y Nombre'] == docente]
                 columns = list(subset.columns) + ['Observación']
                 for col_num, col_name in enumerate(columns, 1):
@@ -40,6 +46,7 @@ def upload_file():
                     cell.alignment = center_align
                 row_num += 1
 
+                # Filas de datos
                 for _, row in subset.iterrows():
                     jornada = str(row['Departamento']).strip().upper()
                     dia_semana = str(row['Semana']).strip().lower()
@@ -68,8 +75,12 @@ def upload_file():
 
                 row_num += 1  # Espacio entre docentes
 
+            # Guardar archivo
             output_path = "informe_asistencia.xlsx"
             wb.save(output_path)
             return send_file(output_path, as_attachment=True)
 
-    return render_template("index.html")
+    return render_template('index.html')
+
+if __name__ == '__main__':
+    app.run(debug=True)
