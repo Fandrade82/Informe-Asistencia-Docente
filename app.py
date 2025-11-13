@@ -1,19 +1,9 @@
-rom flask import Flask, request, send_file, render_template_string
+from flask import Flask, request, send_file, render_template
 import pandas as pd
 from openpyxl import Workbook
 from openpyxl.styles import PatternFill, Font, Alignment
 
 app = Flask(__name__)
-
-HTML_FORM = """
-<!doctype html>
-<title>Informe de Asistencia</title>
-<h2>Sube tu archivo Excel de asistencia</h2>
-<form method=post enctype=multipart/form-data>
-  <input type=file name=file>
-  <input type=submit value=Procesar>
-</form>
-"""
 
 @app.route('/', methods=['GET', 'POST'])
 def upload_file():
@@ -82,7 +72,4 @@ def upload_file():
             wb.save(output_path)
             return send_file(output_path, as_attachment=True)
 
-    return render_template_string(HTML_FORM)
-
-if __name__ == '__main__':
-    app.run(debug=True)
+    return render_template("index.html")
