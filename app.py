@@ -1,19 +1,10 @@
-from flask import Flask, request, send_file, render_template_string
+from flask import Flask, request, send_file, render_template
 import pandas as pd
 from openpyxl import Workbook
 from openpyxl.styles import PatternFill, Font, Alignment
+import datetime
 
 app = Flask(__name__)
-
-HTML_FORM = """
-<!doctype html>
-<title>Informe de Asistencia</title>
-<h2>Sube tu archivo Excel de asistencia</h2>
-<form method=post enctype=multipart/form-data>
-  <input type=file name=file>
-  <input type=submit value=Procesar>
-</form>
-"""
 
 @app.route('/', methods=['GET', 'POST'])
 def upload_file():
@@ -23,7 +14,6 @@ def upload_file():
             df = pd.read_excel(file, engine='openpyxl')
             df.columns = df.columns.str.strip()
 
-            docentes = df['Apellido y Nombre'].unique()
             wb = Workbook()
             ws = wb.active
             ws.title = "Informe"
@@ -33,7 +23,9 @@ def upload_file():
             yellow_fill = PatternFill(start_color="FFFF00", end_color="FFFF00", fill_type="solid")
             center_align = Alignment(horizontal="center")
 
+            docentes = df['Apellido y Nombre'].unique()
             row_num = 1
+
             for docente in docentes:
                 ws.merge_cells(start_row=row_num, start_column=1, end_row=row_num, end_column=10)
                 cell = ws.cell(row=row_num, column=1, value=docente)
@@ -76,13 +68,14 @@ def upload_file():
                     cell.alignment = center_align
                     row_num += 1
 
-                row_num += 1  # Espacio entre docentes
+                row_num += 1
 
-            output_path = "informe_asistencia.xlsx"
+            fecha = datetime.datetime.now().strftime('%Y-%m-%d')
+            output_path = f"Informe_Asistencia_{fecha}.xlsx"
             wb.save(output_path)
             return send_file(output_path, as_attachment=True)
 
-    return render_template_string(HTML_FORM)
+    return render_template('index.html')
 
 if __name__ == '__main__':
     app.run(debug=True)
