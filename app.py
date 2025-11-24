@@ -9,7 +9,7 @@ app = Flask(__name__)
 
 @app.route('/')
 def index():
-    return render_template('index.html')  # Usa el HTML con Bootstrap
+    return render_template('index.html')  # Usa el HTML con Bootstrap en /templates
 
 @app.route('/procesar', methods=['POST'])
 def procesar():
@@ -56,20 +56,3 @@ def procesar():
             headers = ["Fecha", "Departamento", "Hora1", "Hora2", "Hora3", "Hora4", "Tiempo total", "Observación"]
             for col_idx, h in enumerate(headers, start=1):
                 cell = ws.cell(row=row, column=col_idx, value=h)
-                cell.fill = header_fill
-                cell.font = header_font
-                cell.alignment = center_align
-            row += 1
-
-            # Reglas de validación
-            dept = data["Departamento"].iloc[0]
-            for _, r in data.iterrows():
-                fecha_dia = f"{r['Fecha']} - {r['Semana']}"
-                hora1, hora2, hora3, hora4 = r["Hora1"], r["Hora2"], r["Hora3"], r["Hora4"]
-                tiempo_total = r["Tiempo total de trabajo"]
-                observacion = ""
-
-                # Validar marcaciones
-                if dept in ["ADMIN MATUTINA", "ADMIN VESPERTINA"]:
-                    if pd.isna(hora3) or pd.isna(hora4):
-                        observacion = "No marca"
