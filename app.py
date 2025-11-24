@@ -56,3 +56,59 @@ def procesar():
             headers = ["Fecha", "Departamento", "Hora1", "Hora2", "Hora3", "Hora4", "Tiempo total", "Observación"]
             for col_idx, h in enumerate(headers, start=1):
                 cell = ws.cell(row=row, column=col_idx, value=h)
+                cell.fill = header_fill
+                cell.font = header_font
+                cell.alignment = center_align
+            row += 1
+
+            # Reglas de validación
+            dept = data["Departamento"].iloc[0]
+            for _, r in data.iterrows():
+                fecha_dia = f"{r['Fecha']} - {r['Semana']}"
+                hora1, hora2, hora3, hora4 = r["Hora1"], r["Hora2"], r["Hora3"], r["Hora4"]
+                tiempo_total = r["Tiempo total de trabajo"]
+                observacion = ""
+
+                # Validar marcaciones
+                if dept in ["ADMIN MATUTINA", "ADMIN VESPERTINA"]:
+                    if pd.isna(hora3) or pd.isna(hora4):
+                        observacion = "No marca"
+                elif dept in ["DOC. MATUTINA", "DOC. VESPERTINA", "DOC. NOCTURNA"] and r["Semana"] == "jueves":
+                    if pd.isna(hora3) or pd.isna(hora4):
+                        observacion = "No marca"
+
+                # Escribir fila
+                values = [fecha_dia, dept, hora1, hora2, hora3, hora4, tiempo_total, observacion]
+                for col_idx, val in enumerate(values, start=1):
+                    cell = ws.cell(row=row, column=col_idx, value=val)
+                    cell.alignment = center_align
+                    if observacion:
+                        cell.fill = PatternFill(start_color="FFFF00", end_color="FFFF00", fill_type="solid")
+                row += 1
+
+            row += 2  # Espacio entre docentes
+
+        # Ajustar ancho de columnas
+        for col_idx in range(1, 9):
+            max_length = 0
+            col_letter = get_column_letter(col_idx)
+            for row_cells in ws.iter_rows(min_col=col_idx, max_col=col_idx):
+                for cell in row_cells:
+                    if cell.value:
+                        max_length = max(max_length, len(str(cell.value)))
+            ws.column_dimensions[col_letter].width = max_length + 2
+
+        # Guardar en memoria
+        output = io.BytesIO()
+        wb.save(output)
+        output.seek(0)
+
+        return send_file(output, as_attachment=True,
+                         download_name="Reporte_Asistencia.xlsx",
+                         mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
+    except Exception as e:
+        return f"Error interno: {str(e)}", 500
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=5000)
